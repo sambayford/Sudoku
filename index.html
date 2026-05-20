@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SUDOKU</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e0f;
+    --surface: #16161a;
+    --border: #2a2a30;
+    --accent: #e8c97e;
+    --accent2: #c97eb0;
+    --text: #f0ede6;
+    --muted: #5a5a65;
+    --given: #e8c97e;
+    --player: #f0ede6;
+    --error: #e87e7e;
+    --selected-bg: #1e1e26;
+    --highlight-bg: #191920;
+    --box-border: #3a3a45;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 30% 20%, rgba(232,201,126,0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(201,126,176,0.04) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    font-weight: 900;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  .subtitle {
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  .game-wrap {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .board-container {
+    position: relative;
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 1px;
+    background: var(--box-border);
+    border: 2px solid var(--box-border);
+    border-radius: 4px;
+    overflow: hidden;
+    width: min(450px, 90vw);
+    height: min(450px, 90vw);
+  }
+
+  .cell {
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(14px, 2.5vw, 22px);
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+    user-select: none;
+    color: var(--player);
+    border: none;
+    outline: none;
+  }
+
+  /* Box borders */
+  .cell[data-col="2"], .cell[data-col="5"] {
+    border-right: 2px solid var(--box-border);
+  }
+  .cell[data-row="2"], .cell[data-row="5"] {
+    border-bottom: 2px solid var(--box-border);
+  }
+
+  .cell.given {
+    color: var(--accent);
+    font-weight: 500;
+    cursor: default;
+  }
+
+  .cell.selected {
+    background: var(--selected-bg);
+    box-shadow: inset 0 0 0 2px var(--accent);
+    z-index: 2;
+  }
+
+  .cell.highlighted {
+    background: var(--highlight-bg);
+  }
+
+  .cell.same-number {
+    background: #1e1e24;
+  }
+
+  .cell.error {
+    color: var(--error) !important;
+  }
+
+  .cell.error-highlight {
+    background: rgba(232, 126, 126, 0.08);
+  }
+
+  .cell .notes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: 100%;
+    height: 100%;
+    padding: 2px;
+  }
+
+  .cell .notes span {
+    font-size: clamp(6px, 1vw, 9px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-weight: 300;
+    line-height: 1;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 160px;
+  }
+
+  .stat-box {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    background: var(--surface);
+  }
+
+  .stat-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .difficulty-select {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .diff-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .diff-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    padding: 8px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .diff-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .diff-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,201,126,0.06);
+  }
+
+  .action-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    padding: 10px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    width: 100%;
+  }
+
+  .action-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .action-btn.primary {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .action-btn.primary:hover {
+    background: rgba(232,201,126,0.08);
+  }
+
+  .note-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    background: var(--surface);
+    transition: all 0.15s;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    width: 100%;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .note-toggle.active {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(201,126,176,0.06);
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  /* Numpad */
+  .numpad {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 4px;
+    width: min(450px, 90vw);
+    margin-top: 8px;
+  }
+
+  .num-btn {
+    aspect-ratio: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(12px, 2vw, 18px);
+    font-weight: 500;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .num-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,201,126,0.05);
+  }
+
+  .num-btn.erase {
+    font-size: clamp(8px, 1.5vw, 12px);
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+
+  .win-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(14,14,15,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s;
+  }
+
+  .win-overlay.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .win-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+    animation: pulse 2s ease infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .win-sub {
+    font-size: 0.75rem;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+
+  .win-time {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem;
+    color: var(--text);
+    margin-bottom: 40px;
+  }
+
+  .mistakes-display {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .mistake-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+
+  .mistake-dot.filled {
+    background: var(--error);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Sudoku</h1>
+  <div class="subtitle">Logic · Patience · Precision</div>
+</header>
+
+<div class="game-wrap">
+  <div>
+    <div class="board-container">
+      <div class="board" id="board"></div>
+    </div>
+    <div class="numpad" id="numpad"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="stat-box">
+      <div class="stat-label">Time</div>
+      <div class="stat-value" id="timer">0:00</div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-label">Mistakes</div>
+      <div class="mistakes-display" id="mistakes-display">
+        <div class="mistake-dot" id="m1"></div>
+        <div class="mistake-dot" id="m2"></div>
+        <div class="mistake-dot" id="m3"></div>
+      </div>
+    </div>
+
+    <div class="difficulty-select">
+      <div class="diff-label">Difficulty</div>
+      <button class="diff-btn" data-diff="easy">Easy</button>
+      <button class="diff-btn active" data-diff="medium">Medium</button>
+      <button class="diff-btn" data-diff="hard">Hard</button>
+      <button class="diff-btn" data-diff="expert">Expert</button>
+    </div>
+
+    <button class="action-btn primary" id="new-game">New Game</button>
+    <button class="note-toggle" id="note-toggle"><span class="dot"></span> Notes</button>
+    <button class="action-btn" id="hint-btn">Hint</button>
+    <button class="action-btn" id="undo-btn">Undo</button>
+  </div>
+</div>
+
+<div class="win-overlay" id="win-overlay">
+  <div class="win-title">Solved!</div>
+  <div class="win-sub">Puzzle Complete</div>
+  <div class="win-time" id="win-time"></div>
+  <button class="action-btn primary" id="win-new" style="width:auto;padding:12px 32px;font-size:0.8rem;">Play Again</button>
+</div>
+
+<script>
+const DIFFICULTIES = {
+  easy: 36,
+  medium: 46,
+  hard: 52,
+  expert: 58
+};
+
+let board = Array(81).fill(0);
+let solution = Array(81).fill(0);
+let given = Array(81).fill(false);
+let userNotes = Array(81).fill(null).map(() => new Set());
+let selected = -1;
+let noteMode = false;
+let mistakes = 0;
+let history = [];
+let timerInterval = null;
+let seconds = 0;
+let difficulty = 'medium';
+let gameOver = false;
+
+// ---- Sudoku Generator ----
+function generateSudoku() {
+  const grid = Array(81).fill(0);
+  solveSudoku(grid, true);
+  return grid;
+}
+
+function isValid(grid, idx, val) {
+  const row = Math.floor(idx / 9), col = idx % 9;
+  for (let c = 0; c < 9; c++) if (grid[row*9+c] === val) return false;
+  for (let r = 0; r < 9; r++) if (grid[r*9+col] === val) return false;
+  const br = Math.floor(row/3)*3, bc = Math.floor(col/3)*3;
+  for (let r = br; r < br+3; r++) for (let c = bc; c < bc+3; c++)
+    if (grid[r*9+c] === val) return false;
+  return true;
+}
+
+function solveSudoku(grid, randomize=false) {
+  const idx = grid.indexOf(0);
+  if (idx === -1) return true;
+  const nums = [1,2,3,4,5,6,7,8,9];
+  if (randomize) nums.sort(() => Math.random()-0.5);
+  for (const n of nums) {
+    if (isValid(grid, idx, n)) {
+      grid[idx] = n;
+      if (solveSudoku(grid, randomize)) return true;
+      grid[idx] = 0;
+    }
+  }
+  return false;
+}
+
+function createPuzzle(sol, removals) {
+  const puzzle = [...sol];
+  const indices = Array.from({length:81},(_,i)=>i).sort(()=>Math.random()-0.5);
+  let removed = 0;
+  for (const idx of indices) {
+    if (removed >= removals) break;
+    const backup = puzzle[idx];
+    puzzle[idx] = 0;
+    // Quick uniqueness check
+    const test = [...puzzle];
+    let count = 0;
+    function countSolutions(g) {
+      if (count > 1) return;
+      const i = g.indexOf(0);
+      if (i === -1) { count++; return; }
+      for (let n = 1; n <= 9; n++) {
+        if (isValid(g, i, n)) { g[i]=n; countSolutions([...g]); g[i]=0; }
+      }
+    }
+    countSolutions([...test]);
+    if (count === 1) removed++;
+    else puzzle[idx] = backup;
+  }
+  return puzzle;
+}
+
+function newGame() {
+  solution = generateSudoku();
+  const removals = DIFFICULTIES[difficulty];
+  board = createPuzzle(solution, removals);
+  given = board.map(v => v !== 0);
+  userNotes = Array(81).fill(null).map(() => new Set());
+  selected = -1;
+  mistakes = 0;
+  history = [];
+  gameOver = false;
+  seconds = 0;
+  clearInterval(timerInterval);
+  timerInterval = setInterval(tick, 1000);
+  updateTimer();
+  updateMistakes();
+  document.getElementById('win-overlay').classList.remove('show');
+  renderBoard();
+}
+
+function tick() {
+  seconds++;
+  updateTimer();
+}
+
+function updateTimer() {
+  const m = Math.floor(seconds/60);
+  const s = seconds % 60;
+  document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function updateMistakes() {
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById(`m${i}`).classList.toggle('filled', i <= mistakes);
+  }
+  if (mistakes >= 3) {
+    gameOver = true;
+    clearInterval(timerInterval);
+    // Flash board red briefly
+    document.getElementById('board').style.outline = '2px solid var(--error)';
+    setTimeout(() => { document.getElementById('board').style.outline = ''; newGame(); }, 1500);
+  }
+}
+
+function renderBoard() {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+  for (let i = 0; i < 81; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (given[i] ? ' given' : '');
+    cell.dataset.idx = i;
+    cell.dataset.row = Math.floor(i/9);
+    cell.dataset.col = i%9;
+
+    if (board[i] !== 0) {
+      cell.textContent = board[i];
+      const isErr = board[i] !== solution[i];
+      if (isErr && !given[i]) cell.classList.add('error');
+    } else if (userNotes[i].size > 0) {
+      const notes = document.createElement('div');
+      notes.className = 'notes';
+      for (let n = 1; n <= 9; n++) {
+        const span = document.createElement('span');
+        span.textContent = userNotes[i].has(n) ? n : '';
+        notes.appendChild(span);
+      }
+      cell.appendChild(notes);
+    }
+
+    if (i === selected) cell.classList.add('selected');
+    else if (selected !== -1) {
+      const sr = Math.floor(selected/9), sc = selected%9;
+      const er = Math.floor(i/9), ec = i%9;
+      const sBox = Math.floor(sr/3)*3+Math.floor(sc/3);
+      const eBox = Math.floor(er/3)*3+Math.floor(ec/3);
+      if (sr===er || sc===ec || sBox===eBox) cell.classList.add('highlighted');
+      if (board[selected] !== 0 && board[i] === board[selected] && board[i] !== 0) {
+        cell.classList.add('same-number');
+      }
+    }
+
+    cell.addEventListener('click', () => selectCell(i));
+    boardEl.appendChild(cell);
+  }
+}
+
+function selectCell(idx) {
+  if (gameOver) return;
+  selected = idx;
+  renderBoard();
+}
+
+function inputNumber(n) {
+  if (selected === -1 || given[selected] || gameOver) return;
+  history.push({ idx: selected, prev: board[selected], prevNotes: new Set(userNotes[selected]) });
+
+  if (noteMode) {
+    if (board[selected] !== 0) return;
+    if (userNotes[selected].has(n)) userNotes[selected].delete(n);
+    else userNotes[selected].add(n);
+  } else {
+    if (board[selected] === n) { board[selected] = 0; }
+    else {
+      userNotes[selected].clear();
+      // Clear notes in related cells
+      clearRelatedNotes(selected, n);
+      board[selected] = n;
+      if (n !== solution[selected]) {
+        mistakes++;
+        updateMistakes();
+      }
+    }
+  }
+  renderBoard();
+  checkWin();
+}
+
+function clearRelatedNotes(idx, n) {
+  const row = Math.floor(idx/9), col = idx%9;
+  const br = Math.floor(row/3)*3, bc = Math.floor(col/3)*3;
+  for (let i = 0; i < 81; i++) {
+    const r = Math.floor(i/9), c = i%9;
+    const b = Math.floor(r/3)*3+Math.floor(c/3);
+    const refBox = Math.floor(row/3)*3+Math.floor(col/3);
+    if (r===row || c===col || b===refBox) userNotes[i].delete(n);
+  }
+}
+
+function eraseCell() {
+  if (selected === -1 || given[selected] || gameOver) return;
+  history.push({ idx: selected, prev: board[selected], prevNotes: new Set(userNotes[selected]) });
+  board[selected] = 0;
+  userNotes[selected].clear();
+  renderBoard();
+}
+
+function undo() {
+  if (history.length === 0) return;
+  const { idx, prev, prevNotes } = history.pop();
+  board[idx] = prev;
+  userNotes[idx] = prevNotes;
+  selected = idx;
+  renderBoard();
+}
+
+function hint() {
+  if (gameOver) return;
+  // Find an empty cell
+  const empties = [];
+  for (let i = 0; i < 81; i++) if (board[i] === 0 && !given[i]) empties.push(i);
+  if (empties.length === 0) return;
+  const idx = empties[Math.floor(Math.random()*empties.length)];
+  history.push({ idx, prev: 0, prevNotes: new Set(userNotes[idx]) });
+  board[idx] = solution[idx];
+  userNotes[idx].clear();
+  selected = idx;
+  renderBoard();
+  checkWin();
+}
+
+function checkWin() {
+  for (let i = 0; i < 81; i++) if (board[i] !== solution[i]) return;
+  clearInterval(timerInterval);
+  gameOver = true;
+  const m = Math.floor(seconds/60);
+  const s = seconds % 60;
+  document.getElementById('win-time').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  setTimeout(() => document.getElementById('win-overlay').classList.add('show'), 400);
+}
+
+// ---- Build Numpad ----
+function buildNumpad() {
+  const pad = document.getElementById('numpad');
+  for (let n = 1; n <= 9; n++) {
+    const btn = document.createElement('button');
+    btn.className = 'num-btn';
+    btn.textContent = n;
+    btn.addEventListener('click', () => inputNumber(n));
+    pad.appendChild(btn);
+  }
+}
+
+// ---- Event Listeners ----
+document.addEventListener('keydown', e => {
+  if (gameOver) return;
+  if (e.key >= '1' && e.key <= '9') inputNumber(parseInt(e.key));
+  if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') eraseCell();
+  if (e.key === 'n' || e.key === 'N') toggleNotes();
+  if (e.key === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
+  // Arrow navigation
+  if (selected !== -1) {
+    const dirs = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 };
+    if (dirs[e.key] !== undefined) {
+      e.preventDefault();
+      const next = selected + dirs[e.key];
+      if (next >= 0 && next < 81) selectCell(next);
+    }
+  }
+});
+
+function toggleNotes() {
+  noteMode = !noteMode;
+  document.getElementById('note-toggle').classList.toggle('active', noteMode);
+}
+
+document.getElementById('note-toggle').addEventListener('click', toggleNotes);
+document.getElementById('hint-btn').addEventListener('click', hint);
+document.getElementById('undo-btn').addEventListener('click', undo);
+document.getElementById('new-game').addEventListener('click', newGame);
+document.getElementById('win-new').addEventListener('click', newGame);
+
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    newGame();
+  });
+});
+
+buildNumpad();
+newGame();
+</script>
+</body>
+</html>
