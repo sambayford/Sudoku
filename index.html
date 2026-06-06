@@ -102,7 +102,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(14px, 2.5vw, 22px);
+    font-size: clamp(18px, 3.5vw, 30px);
     font-family: 'DM Mono', monospace;
     font-weight: 500;
     cursor: pointer;
@@ -315,7 +315,7 @@
     border: 1px solid var(--border);
     color: var(--text);
     font-family: 'DM Mono', monospace;
-    font-size: clamp(12px, 2vw, 18px);
+    font-size: clamp(16px, 2.8vw, 24px);
     font-weight: 500;
     border-radius: 3px;
     cursor: pointer;
@@ -403,6 +403,131 @@
   .mistake-dot.filled {
     background: var(--error);
   }
+
+  .win-rank {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--accent2);
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    min-height: 1.2em;
+  }
+
+  .scores-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(14,14,15,0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .scores-overlay.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .scores-modal {
+    background: var(--surface);
+    border: 1px solid var(--box-border);
+    border-radius: 6px;
+    padding: 32px 28px;
+    width: min(380px, 92vw);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .scores-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    margin-bottom: 20px;
+  }
+
+  .scores-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .tab-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+
+  .tab-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,201,126,0.06);
+  }
+
+  .scores-list {
+    width: 100%;
+  }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .score-row:last-child { border-bottom: none; }
+
+  .score-rank {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    color: var(--muted);
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .score-rank.gold { color: #e8c97e; }
+  .score-rank.silver { color: #b0b0c0; }
+  .score-rank.bronze { color: #c8906a; }
+
+  .score-time {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .score-meta {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  .no-scores {
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-align: center;
+    padding: 24px 0;
+  }
 </style>
 </head>
 <body>
@@ -447,6 +572,7 @@
     <button class="note-toggle" id="note-toggle"><span class="dot"></span> Notes</button>
     <button class="action-btn" id="hint-btn">Hint</button>
     <button class="action-btn" id="undo-btn">Undo</button>
+    <button class="action-btn" id="scores-btn">Best Times</button>
   </div>
 </div>
 
@@ -454,7 +580,20 @@
   <div class="win-title">Solved!</div>
   <div class="win-sub">Puzzle Complete</div>
   <div class="win-time" id="win-time"></div>
-  <button class="action-btn primary" id="win-new" style="width:auto;padding:12px 32px;font-size:0.8rem;">Play Again</button>
+  <div class="win-rank" id="win-rank"></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+    <button class="action-btn" id="win-scores" style="width:auto;padding:12px 24px;font-size:0.8rem;">Best Times</button>
+    <button class="action-btn primary" id="win-new" style="width:auto;padding:12px 32px;font-size:0.8rem;">Play Again</button>
+  </div>
+</div>
+
+<div class="scores-overlay" id="scores-overlay">
+  <div class="scores-modal">
+    <div class="scores-title">Best Times</div>
+    <div class="scores-tabs" id="scores-tabs"></div>
+    <div class="scores-list" id="scores-list"></div>
+    <button class="action-btn" id="scores-close" style="margin-top:20px;">Close</button>
+  </div>
 </div>
 
 <script>
@@ -619,6 +758,7 @@ function renderBoard() {
     cell.addEventListener('click', () => selectCell(i));
     boardEl.appendChild(cell);
   }
+  saveProgress();
 }
 
 function selectCell(idx) {
@@ -699,9 +839,17 @@ function checkWin() {
   for (let i = 0; i < 81; i++) if (board[i] !== solution[i]) return;
   clearInterval(timerInterval);
   gameOver = true;
+  clearProgress();
+  const rank = saveHighScore(difficulty, seconds, mistakes);
   const m = Math.floor(seconds/60);
   const s = seconds % 60;
   document.getElementById('win-time').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  const rankEl = document.getElementById('win-rank');
+  if (rank === 1) rankEl.textContent = '🥇 New best time!';
+  else if (rank === 2) rankEl.textContent = '🥈 2nd best time';
+  else if (rank === 3) rankEl.textContent = '🥉 3rd best time';
+  else if (rank) rankEl.textContent = `#${rank} best time`;
+  else rankEl.textContent = '';
   setTimeout(() => document.getElementById('win-overlay').classList.add('show'), 400);
 }
 
@@ -755,8 +903,142 @@ document.querySelectorAll('.diff-btn').forEach(btn => {
   });
 });
 
+// ---- High Scores ----
+const SCORES_KEY = 'sudoku_highscores';
+const MAX_SCORES = 10;
+
+function loadHighScores() {
+  try { return JSON.parse(localStorage.getItem(SCORES_KEY)) || {}; } catch(e) { return {}; }
+}
+
+function saveHighScore(diff, secs, errs) {
+  const all = loadHighScores();
+  if (!all[diff]) all[diff] = [];
+  const entry = { time: secs, mistakes: errs, date: new Date().toLocaleDateString() };
+  all[diff].push(entry);
+  all[diff].sort((a, b) => a.time - b.time);
+  const rank = all[diff].findIndex(e => e === entry) + 1;
+  all[diff] = all[diff].slice(0, MAX_SCORES);
+  try { localStorage.setItem(SCORES_KEY, JSON.stringify(all)); } catch(e) {}
+  return rank <= MAX_SCORES ? rank : null;
+}
+
+function fmtTime(s) {
+  const m = Math.floor(s/60);
+  return `${m}:${(s%60).toString().padStart(2,'0')}`;
+}
+
+let scoresTab = 'medium';
+
+function openScores() {
+  scoresTab = difficulty;
+  renderScoresModal();
+  document.getElementById('scores-overlay').classList.add('show');
+}
+
+function renderScoresModal() {
+  const all = loadHighScores();
+  const tabs = document.getElementById('scores-tabs');
+  tabs.innerHTML = '';
+  ['easy','medium','hard','expert'].forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (d === scoresTab ? ' active' : '');
+    btn.textContent = d;
+    btn.onclick = () => { scoresTab = d; renderScoresModal(); };
+    tabs.appendChild(btn);
+  });
+
+  const list = document.getElementById('scores-list');
+  const entries = all[scoresTab] || [];
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="no-scores">No scores yet for this difficulty</div>';
+    return;
+  }
+  list.innerHTML = '';
+  entries.forEach((e, i) => {
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i+1;
+    row.innerHTML = `
+      <div class="score-rank ${rankClass}">${medal}</div>
+      <div class="score-time">${fmtTime(e.time)}</div>
+      <div class="score-meta">${e.mistakes} mistake${e.mistakes !== 1 ? 's' : ''}<br>${e.date}</div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('scores-btn').addEventListener('click', openScores);
+document.getElementById('win-scores').addEventListener('click', () => {
+  document.getElementById('win-overlay').classList.remove('show');
+  openScores();
+});
+document.getElementById('scores-close').addEventListener('click', () => {
+  document.getElementById('scores-overlay').classList.remove('show');
+});
+document.getElementById('scores-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('scores-overlay'))
+    document.getElementById('scores-overlay').classList.remove('show');
+});
+
+const SAVE_KEY = 'sudoku_progress';
+
+function saveProgress() {
+  if (gameOver) { clearProgress(); return; }
+  const state = {
+    board,
+    solution,
+    given,
+    notes: userNotes.map(s => [...s]),
+    mistakes,
+    seconds,
+    difficulty
+  };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e) {}
+}
+
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    board = s.board;
+    solution = s.solution;
+    given = s.given;
+    userNotes = s.notes.map(arr => new Set(arr));
+    mistakes = s.mistakes;
+    seconds = s.seconds;
+    difficulty = s.difficulty || 'medium';
+    document.querySelectorAll('.diff-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.diff === difficulty);
+    });
+    return true;
+  } catch(e) { return false; }
+}
+
+function clearProgress() {
+  try { localStorage.removeItem(SAVE_KEY); } catch(e) {}
+}
+
+// Auto-save every 5s
+setInterval(saveProgress, 5000);
+
 buildNumpad();
-newGame();
+
+// Resume saved game or start fresh
+if (loadProgress()) {
+  selected = -1;
+  gameOver = false;
+  clearInterval(timerInterval);
+  timerInterval = setInterval(tick, 1000);
+  updateTimer();
+  updateMistakes();
+  document.getElementById('win-overlay').classList.remove('show');
+  renderBoard();
+} else {
+  newGame();
+}
 </script>
 </body>
 </html>
