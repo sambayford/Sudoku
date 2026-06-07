@@ -705,6 +705,27 @@ function updateTimer() {
   document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
 }
 
+function pauseTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+function resumeTimer() {
+  if (!timerInterval && !gameOver) {
+    timerInterval = setInterval(tick, 1000);
+  }
+}
+
+// Pause when screen turns off or tab is hidden, resume when visible again
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    pauseTimer();
+    saveProgress();
+  } else {
+    resumeTimer();
+  }
+});
+
 function updateMistakes() {
   for (let i = 1; i <= 3; i++) {
     document.getElementById(`m${i}`).classList.toggle('filled', i <= mistakes);
